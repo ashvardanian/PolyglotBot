@@ -11,7 +11,7 @@ bot = PolyglotBot()
 image = Image.debian_slim().pip_install_from_requirements("requirements.txt")
 
 # Rename "poe-server-bot-quick-start" to your preferred app name.
-stub = Stub("poe-server-bot-quick-start")
+stub = Stub("PolyglotBotAI")
 
 
 @stub.function(image=image)
