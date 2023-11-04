@@ -112,18 +112,21 @@ async def stream_request_wrapper(
         yield msg.model_copy(update={"is_replace_response": False})
 
 
-class GPT35TurbovsClaudeBot(PoeBot):
+class PolyglotBot(PoeBot):
+    MOST_POPULAR_BOTS = ["GPT-3.5-Turbo", "Claude-instant"]
+
     async def get_response(
         self, request: QueryRequest
     ) -> AsyncIterable[PartialResponse]:
         streams = [
             stream_request_wrapper(request, bot)
-            for bot in ("GPT-3.5-Turbo", "Claude-instant")
+            for bot in PolyglotBot.MOST_POPULAR_BOTS
         ]
         async for msg in combine_streams(*streams):
             yield msg
 
     async def get_settings(self, setting: SettingsRequest) -> SettingsResponse:
+        # Only up to 10 dependencies are allowed.
         return SettingsResponse(
-            server_bot_dependencies={"GPT-3.5-Turbo": 1, "Claude-instant": 1}
+            server_bot_dependencies={k: 1 for k in PolyglotBot.MOST_POPULAR_BOTS}
         )
