@@ -5,10 +5,12 @@ Sample bot that returns interleaved results from GPT-3.5-Turbo and Claude-instan
 """
 from __future__ import annotations
 
+import json
 import asyncio
 import re
 from collections import defaultdict
 from typing import AsyncIterable, AsyncIterator
+from copy import deepcopy
 
 from fastapi_poe import PoeBot
 from fastapi_poe.client import stream_request
@@ -93,11 +95,12 @@ def preprocess_query(request: QueryRequest, bot: str) -> QueryRequest:
 
 
 async def stream_request_wrapper(
-    request: QueryRequest, bot: str
+    request: QueryRequest, bot: str, name: bool = True
 ) -> AsyncIterator[PartialResponse]:
     """Wraps stream_request and labels the bot response with the bot name."""
-    label = PartialResponse(text=f"**{bot.title()}** says:\n", is_replace_response=True)
-    yield label
+    if name:
+        label = PartialResponse(text=f"**{bot.title()}** says:\n", is_replace_response=True)
+        yield label
     async for msg in stream_request(
         preprocess_query(request, bot), bot, request.access_key
     ):
@@ -116,7 +119,6 @@ class PolyglotBot(PoeBot):
     POPULAR_BOTS = ["GPT-4", "Claude-2-100k", "fw-mistral-7b", "Llama-2-70b"]
     OPTIONAL_BOTS = [
         "PsychologistGPT",
-        "UniversityGPT",
         "leocooks",
         "GrandmaGPT",
         "1FitCoach",
@@ -125,9 +127,73 @@ class PolyglotBot(PoeBot):
     async def get_response(
         self, request: QueryRequest
     ) -> AsyncIterable[PartialResponse]:
-        streams = [
-            stream_request_wrapper(request, bot) for bot in PolyglotBot.POPULAR_BOTS
-        ]
+
+        bots_to_invoke = PolyglotBot.POPULAR_BOTS.copy() 
+
+        request_plain = "".join(q.content for q in request.query)
+        request_plain = request_plain.replace("\n", " ")
+
+        metadata_request = deepcopy(request)
+        metadata_request_message = '''
+            I'm going to show you a textual request:
+
+            > {request_plain}
+
+            Please evaluate, if you need to use the internet to answer this question.
+            And if the question is related to any of the following topics:
+                - psychology
+                - education
+                - cooking
+                - fitness
+
+            Provide me the response as a single valid JSON object with the following keys and boolean values:
+                - is_related_to_psychology
+                - is_related_to_education
+                - is_related_to_cooking
+                - is_related_to_fitness
+                - requires_internet
+
+            Example:
+
+            {{
+                "is_related_to_psychology": false,
+                "is_related_to_education": true,
+                "is_related_to_cooking": false,
+                "is_related_to_fitness": false,
+                "requires_internet": true,
+            }}
+            '''.format(
+            request_plain=request_plain
+        )
+        metadata_request.query.clear()
+        metadata_request.query.append(
+            ProtocolMessage(role="bot", content=metadata_request_message)
+        )
+        metadata_stream = stream_request_wrapper(metadata_request, "GPT-4", name=False)
+
+        # Parse the GPT's response
+        metadata_response = "".join([msg.text async for msg in metadata_stream])
+        metadata_response = metadata_response[metadata_response.find("{"):]
+        metadata_response = metadata_response[:metadata_response.find("}")+1]
+        try:
+            metadata = json.loads(metadata_response)
+        except json.JSONDecodeError:
+            print("Received invalid metadata response from GPT-4", metadata_response)
+            metadata = {}
+        print("Received metadata response from GPT-4", metadata)
+
+        if metadata["is_related_to_psychology"]:
+            bots_to_invoke.append("PsychologistGPT")
+        if metadata["is_related_to_cooking"]:
+            bots_to_invoke.append("leocooks")
+        if metadata["is_related_to_fitness"]:
+            bots_to_invoke.append("1FitCoach")
+
+        # This capability is not available for now:
+        # if metadata["requires_internet"]:
+        #     bots_to_invoke.append("Web-Search")
+
+        streams = [stream_request_wrapper(request, bot) for bot in bots_to_invoke]
         async for msg in combine_streams(*streams):
             yield msg
 
@@ -135,4 +201,5 @@ class PolyglotBot(PoeBot):
         # Only up to 10 dependencies are allowed.
         deps = [*PolyglotBot.POPULAR_BOTS, *PolyglotBot.OPTIONAL_BOTS, "Web-Search"]
         deps = {k: 1 for k in deps}
+        deps["GPT-4"] = 2
         return SettingsResponse(server_bot_dependencies=deps)
