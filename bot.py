@@ -113,11 +113,8 @@ async def stream_request_wrapper(
 
 
 class PolyglotBot(PoeBot):
-    MOST_POPULAR_BOTS = [
-        "GPT-4",
-        "Claude-2-100k",
-        "fw-mistral-7b",
-        "Llama-2 ",
+    POPULAR_BOTS = ["GPT-4", "Claude-2-100k", "fw-mistral-7b", "Llama-2-70b"]
+    OPTIONAL_BOTS = [
         "PsychologistGPT",
         "UniversityGPT",
         "leocooks",
@@ -129,14 +126,13 @@ class PolyglotBot(PoeBot):
         self, request: QueryRequest
     ) -> AsyncIterable[PartialResponse]:
         streams = [
-            stream_request_wrapper(request, bot)
-            for bot in PolyglotBot.MOST_POPULAR_BOTS
+            stream_request_wrapper(request, bot) for bot in PolyglotBot.POPULAR_BOTS
         ]
         async for msg in combine_streams(*streams):
             yield msg
 
     async def get_settings(self, setting: SettingsRequest) -> SettingsResponse:
         # Only up to 10 dependencies are allowed.
-        deps = {k: 1 for k in PolyglotBot.MOST_POPULAR_BOTS}
-        deps["Web-Search"] = 1
+        deps = [*PolyglotBot.POPULAR_BOTS, *PolyglotBot.OPTIONAL_BOTS, "Web-Search"]
+        deps = {k: 1 for k in deps}
         return SettingsResponse(server_bot_dependencies=deps)

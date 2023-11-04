@@ -17,7 +17,5 @@ stub = Stub("PolyglotBotAI")
 @stub.function(image=image)
 @asgi_app()
 def fastapi_app():
-    app = make_app(
-        bot, allow_without_key=True, access_key=os.environ.get("POE_ACCESS_KEY")
-    )
+    app = make_app(bot, allow_without_key=True)
     return app
