@@ -16,7 +16,7 @@ modal serve main.py
 modal deploy main.py # if you are done building and want to ship ;)
 ```
 
-In case you update the list of available modal, make sure to manually trigger the update on the Quora/Poe side:
+In case you update the list of available modal, make sure to manually trigger the update on the Quora or Poe side:
 
 ```sh
 curl -X POST https://api.poe.com/bot/fetch_settings/PolyglotBotAI/$POE_ACCESS_TOKEN
