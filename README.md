@@ -1,5 +1,5 @@
 # PolyglotBot
-
+Why prompt one model when you can prompt many? Prompt once and receive answers from GPT, Claude, Llama, Mistral and relevant popular bots all at once. Compare responses, evaluate models, hear opinions from multiple sources, don’t just rely on one.
 ```sh
 modal serve main.py
 ```
