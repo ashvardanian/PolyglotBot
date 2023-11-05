@@ -12,6 +12,7 @@ Alternatively, you can re-create the setup using Modal to serve the stateless ba
 
 ```sh
 modal serve main.py
+modal deploy main.py # if you are done building and want to ship ;)
 ```
 
 In case you update the list of available modal, make sure to manually trigger the update on the Quora/Poe side:
