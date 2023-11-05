@@ -8,9 +8,11 @@ from __future__ import annotations
 import json
 import asyncio
 import re
+import os
 from collections import defaultdict
 from typing import AsyncIterable, AsyncIterator
 from copy import deepcopy
+import requests
 
 from fastapi_poe import PoeBot
 from fastapi_poe.client import stream_request
@@ -139,7 +141,7 @@ class PolyglotBot(PoeBot):
 
             > {request_plain}
 
-            Please evaluate, if you need to use the internet to answer this question.
+            Please evaluate, if you need factual knowledge from Wikipedia or the scientific papers from Arxiv.
             And if the question is related to any of the following topics:
                 - psychology
                 - education
@@ -151,7 +153,8 @@ class PolyglotBot(PoeBot):
                 - is_related_to_education
                 - is_related_to_cooking
                 - is_related_to_fitness
-                - requires_internet
+                - needs_arxiv
+                - needs_wikipedia
 
             Example:
 
@@ -160,7 +163,8 @@ class PolyglotBot(PoeBot):
                 "is_related_to_education": true,
                 "is_related_to_cooking": false,
                 "is_related_to_fitness": false,
-                "requires_internet": true,
+                "needs_arxiv": true,
+                "needs_wikipedia": false
             }}
             '''.format(
             request_plain=request_plain
@@ -172,6 +176,7 @@ class PolyglotBot(PoeBot):
         metadata_stream = stream_request_wrapper(metadata_request, "GPT-4", name=False)
 
         # Parse the GPT's response
+        # Remove all the markdown annotations, keep just the JSON
         metadata_response = "".join([msg.text async for msg in metadata_stream])
         metadata_response = metadata_response[metadata_response.find("{"):]
         metadata_response = metadata_response[:metadata_response.find("}")+1]
@@ -189,9 +194,23 @@ class PolyglotBot(PoeBot):
         if metadata["is_related_to_fitness"]:
             bots_to_invoke.append("1FitCoach")
 
-        # This capability is not available for now:
-        # if metadata["requires_internet"]:
-        #     bots_to_invoke.append("Web-Search")
+        # The "Web-Search" capability is not available for now
+        #       bots_to_invoke.append("Web-Search")
+        # So I use a custom information source for factual information:
+        web_search = os.environ.get("WEB_SEARCH_BACKEND", None)
+        if web_search is not None and (metadata.get("needs_arxiv", False) or metadata.get("needs_wikipedia", False)):
+            context = ""
+            try:
+                context = "\n\n **Factual information:** \n\n"
+                response = requests.get(f"{web_search}/search?query={request_plain}&top_k=5")
+                response = response.json()
+                if metadata.get("needs_arxiv", False):
+                    context += "\n".join(response.get("arxiv_texts", []))
+                if metadata.get("wiki_texts", False):
+                    context += "\n".join(response.get("wiki_texts", []))
+                request.query[-1].content += context
+            except Exception as e:
+                print("Error while fetching factual information", e)
 
         streams = [stream_request_wrapper(request, bot) for bot in bots_to_invoke]
         async for msg in combine_streams(*streams):
@@ -199,7 +218,7 @@ class PolyglotBot(PoeBot):
 
     async def get_settings(self, setting: SettingsRequest) -> SettingsResponse:
         # Only up to 10 dependencies are allowed.
-        deps = [*PolyglotBot.POPULAR_BOTS, *PolyglotBot.OPTIONAL_BOTS, "Web-Search"]
+        deps = [*PolyglotBot.POPULAR_BOTS, *PolyglotBot.OPTIONAL_BOTS]
         deps = {k: 1 for k in deps}
         deps["GPT-4"] = 2
         return SettingsResponse(server_bot_dependencies=deps)

@@ -1,5 +1,3 @@
-import os
-
 from fastapi_poe import make_app
 from modal import Image, Stub, asgi_app
 

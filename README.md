@@ -10,6 +10,12 @@ In case you update the list of dependencies:
 curl -X POST https://api.poe.com/bot/fetch_settings/PolyglotBotAI/$POE_ACCESS_TOKEN
 ```
 
+To access the Retrieval Augmentation API:
+
+```sh
+curl -L "${WEB_SEARCH_BACKEND}/search?query=Text&top_k=5"
+```
+
 ## Setup
 
 ```sh
