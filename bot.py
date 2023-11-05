@@ -25,6 +25,16 @@ from fastapi_poe.types import (
     SettingsResponse,
 )
 
+#######################MISTRAL API DEPENDENCIES#####################
+import requests
+import json
+
+url = "https://z6yul4e70k46rj-8888.proxy.runpod.net/v1/chat/completions"
+headers = {
+    'Content-Type': 'application/json',
+}
+##############END OF MISTRAL API DEPENDENCIES#####################
+
 
 async def combine_streams(
     *streams: AsyncIterator[PartialResponse],
@@ -215,6 +225,54 @@ class PolyglotBot(PoeBot):
         streams = [stream_request_wrapper(request, bot) for bot in bots_to_invoke]
         async for msg in combine_streams(*streams):
             yield msg
+            
+        ##############NEW CODE FOR MISTRAL INTEGRATION##############
+        #the code you are writing should go here!
+        last_message = request.query[-1].content
+        #yield PartialResponse(text='test', is_suggested_reply=True)
+        messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": last_message},
+        ]
+        data = {
+            "model": "ehartford/dolphin-2.1-mistral-7b",
+            "messages": messages,
+            "temperature": 0.7,
+            "top_p": 1,
+            "n": 1,
+            "max_tokens": 100,
+            "stop": ["string"],
+            "stream": True,
+            "presence_penalty": 0,
+            "frequency_penalty": 0,
+            "user": "string",
+            "top_k": -1,
+            "ignore_eos": False,
+            "use_beam_search": False,
+            "stop_token_ids": [0],
+            "skip_special_tokens": True,
+        }
+        response = requests.post(url, headers=headers, json=data, stream=True)
+        first_yield = True
+        for line in response.iter_lines():
+            if line:
+                decoded_line = line.decode('utf-8').strip()
+                if decoded_line.startswith("data: "):
+                    json_str = decoded_line[6:]  # Remove "data: " prefix
+                    try:
+                        json_response = json.loads(json_str)
+                        if 'choices' in json_response and json_response['choices']:
+                            choice = json_response['choices'][0]
+                            if 'delta' in choice and 'content' in choice['delta']:
+                                # Yield the content word by word on the same line
+                                if first_yield:
+                                    yield PartialResponse(text="\n\n**MISTRAL-7B Uncensored** Says:\n " + choice['delta']['content'])
+                                    first_yield = False
+                                else:
+                                    yield PartialResponse(text=choice['delta']['content'])
+                    except json.JSONDecodeError as e:
+                        print(f"Received invalid JSON: {e}")
+        ############END OF MISTRAL INTEGRATION#############################
 
     async def get_settings(self, setting: SettingsRequest) -> SettingsResponse:
         # Only up to 10 dependencies are allowed.
