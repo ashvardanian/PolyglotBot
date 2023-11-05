@@ -1,6 +1,7 @@
 # PolyglotBot
 
-Why prompt one model when you can prompt many?
+> Why prompt one model when you can prompt many?
+
 Prompt once and receive answers from GPT, Claude, Llama, Mistral and relevant popular bots all at once.
 Compare responses, evaluate models, hear opinions from multiple sources, don’t just rely on one.
 The system uses 4 models by default and triggers custom models for specific queries, when you ask culinary, psychology, or fitness-related questions.
